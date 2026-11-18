@@ -53,6 +53,7 @@ function urlBase64ToUint8Array(base64String) {
 export default function Home() {
   const [meds, setMeds] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState('today');
   const [modalOpen, setModalOpen] = useState(false);
   const [pushReady, setPushReady] = useState(false);
@@ -98,11 +99,16 @@ export default function Home() {
         applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
       });
 
-      await fetch('/api/subscribe', {
+      const res = await fetch('/api/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sub),
       });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Không lưu được đăng ký thông báo lên server');
+      }
 
       setPushReady(true);
       alert('Đã bật chuông nhắc tự động thành công!');
@@ -114,7 +120,12 @@ export default function Home() {
   const fetchMeds = async () => {
     setLoading(true);
     const today = getTodayVN();
-    const { data } = await supabase.from('medications').select('*').order('name');
+    const { data, error } = await supabase.from('medications').select('*').order('name');
+    if (error) {
+      alert('Lỗi tải danh sách thuốc: ' + error.message);
+      setLoading(false);
+      return;
+    }
     if (data) {
       const normalized = await Promise.all(
         data.map(async (med) => {
@@ -134,30 +145,54 @@ export default function Home() {
   };
 
   const handleAddMed = async (e) => {
-    e.preventDefault();
-    if (!name.trim() || selectedTimes.length === 0) return;
+    if (e) e.preventDefault();
+    if (saving) return;
 
-    const today = getTodayVN();
-    const { data, error } = await supabase
-      .from('medications')
-      .insert([
-        {
-          name: name.trim(),
-          dosage: dosage.trim() || '1 viên',
-          meal_note: mealNote,
-          stock: parseInt(stock, 10) || 0,
-          times: [...selectedTimes].sort(),
-          taken_today: [],
-          last_reset_date: today,
-        },
-      ])
-      .select();
+    if (!name.trim()) {
+      alert('Bạn chưa nhập tên thuốc!');
+      return;
+    }
+    if (selectedTimes.length === 0) {
+      alert('Bạn phải chọn ít nhất 1 giờ uống!');
+      return;
+    }
 
-    if (!error && data) {
-      setMeds([...meds, data[0]]);
-      setName('');
-      setSelectedTimes(['08:00']);
-      setModalOpen(false);
+    setSaving(true);
+    try {
+      const today = getTodayVN();
+      const { data, error } = await supabase
+        .from('medications')
+        .insert([
+          {
+            name: name.trim(),
+            dosage: dosage.trim() || '1 viên',
+            meal_note: mealNote,
+            stock: parseInt(stock, 10) || 0,
+            times: [...selectedTimes].sort(),
+            taken_today: [],
+            last_reset_date: today,
+          },
+        ])
+        .select();
+
+      if (error) {
+        alert('Lỗi Supabase: ' + error.message);
+        setSaving(false);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setMeds([...meds, data[0]]);
+        setName('');
+        setSelectedTimes(['08:00']);
+        setModalOpen(false);
+      } else {
+        alert('Không nhận được dữ liệu trả về từ Supabase!');
+      }
+    } catch (err) {
+      alert('Lỗi kết nối: ' + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -175,16 +210,23 @@ export default function Home() {
       )
     );
 
-    await supabase
+    const { error } = await supabase
       .from('medications')
       .update({ taken_today: nextTaken, stock: nextStock })
       .eq('id', med.id);
+
+    if (error) {
+      alert('Lỗi cập nhật trạng thái: ' + error.message);
+    }
   };
 
   const deleteMed = async (id) => {
     if (!confirm('Xóa thuốc này khỏi danh sách?')) return;
     setMeds(meds.filter((m) => m.id !== id));
-    await supabase.from('medications').delete().eq('id', id);
+    const { error } = await supabase.from('medications').delete().eq('id', id);
+    if (error) {
+      alert('Lỗi xóa thuốc: ' + error.message);
+    }
   };
 
   const toggleTime = (t) => {
@@ -219,6 +261,7 @@ export default function Home() {
           <h1 className="text-2xl font-extrabold text-slate-900">Lịch Uống Thuốc</h1>
         </div>
         <button
+          type="button"
           onClick={enablePushNotifications}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold border transition ${
             pushReady
@@ -253,6 +296,7 @@ export default function Home() {
       {/* Tabs */}
       <div className="grid grid-cols-2 bg-slate-200/80 p-1 rounded-xl mb-5">
         <button
+          type="button"
           onClick={() => setTab('today')}
           className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-bold transition ${
             tab === 'today' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-600'
@@ -261,6 +305,7 @@ export default function Home() {
           <Clock className="w-4 h-4" /> 5 Khung giờ
         </button>
         <button
+          type="button"
           onClick={() => setTab('cabinet')}
           className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-bold transition ${
             tab === 'cabinet' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-600'
@@ -341,6 +386,7 @@ export default function Home() {
               <div className="flex justify-between items-center">
                 <h3 className="font-extrabold text-slate-900">{med.name}</h3>
                 <button
+                  type="button"
                   onClick={() => deleteMed(med.id)}
                   className="p-2 bg-red-50 text-red-500 rounded-lg"
                 >
@@ -368,6 +414,7 @@ export default function Home() {
       {/* Nút thêm thuốc */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#F4F6F9]/90 backdrop-blur-sm max-w-md mx-auto">
         <button
+          type="button"
           onClick={() => setModalOpen(true)}
           className="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-3.5 rounded-2xl shadow-lg shadow-teal-600/25 flex items-center justify-center gap-2"
         >
@@ -383,12 +430,21 @@ export default function Home() {
             className="bg-[#F4F6F9] w-full max-w-md rounded-t-3xl max-h-[90vh] overflow-y-auto p-5"
           >
             <div className="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
-              <button type="button" onClick={() => setModalOpen(false)} className="text-slate-500">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="text-slate-500 p-1"
+              >
                 <X className="w-6 h-6" />
               </button>
               <h2 className="font-extrabold text-base">Thêm Thuốc Mới</h2>
-              <button type="submit" className="text-teal-600 font-extrabold text-sm">
-                Lưu
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleAddMed}
+                className="text-teal-600 font-extrabold text-sm px-2 py-1 disabled:opacity-50"
+              >
+                {saving ? 'Đang lưu...' : 'Lưu'}
               </button>
             </div>
 
@@ -396,7 +452,6 @@ export default function Home() {
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Tên thuốc *</label>
                 <input
-                  required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="VD: Vitamin C, Thuốc dạ dày..."
