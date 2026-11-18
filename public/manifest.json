@@ -1,0 +1,16 @@
+{
+  "name": "Lịch Uống Thuốc",
+  "short_name": "Uống Thuốc",
+  "description": "Ứng dụng nhắc lịch uống thuốc cá nhân và gia đình",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F6F9",
+  "theme_color": "#0D9488",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
