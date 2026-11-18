@@ -1,14 +1,6 @@
 import { NextResponse } from 'next/server';
-import webpush from 'web-push';
+import * as webpush from 'web-push';
 import { supabase } from '@/lib/supabase';
-
-export const dynamic = 'force-dynamic';
-
-webpush.setVapidDetails(
-  'mailto:admin@nhacuongthuoc.local',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
 
 function getVietnamTimeHHMM() {
   const now = new Date();
@@ -29,6 +21,12 @@ export async function GET(request) {
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Sai mã bảo mật' }, { status: 401 });
   }
+
+  webpush.setVapidDetails(
+    'mailto:admin@nhacuongthuoc.local',
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
 
   try {
     const { data: subs } = await supabase.from('push_subscriptions').select('*');
