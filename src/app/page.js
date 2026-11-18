@@ -91,12 +91,21 @@ export default function Home() {
         alert('Bạn đã chặn thông báo. Hãy vào Cài đặt iPhone để bật lại.');
         return;
       }
+
       const reg = await navigator.serviceWorker.register('/sw.js');
+      await reg.update();
       await navigator.serviceWorker.ready;
 
+      // Hủy đăng ký cũ (nếu có) để tránh kẹt khóa VAPID cũ trên iOS
+      const existingSub = await reg.pushManager.getSubscription();
+      if (existingSub) {
+        await existingSub.unsubscribe();
+      }
+
+      const vapidKey = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '').trim();
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
 
       const res = await fetch('/api/subscribe', {
@@ -111,9 +120,23 @@ export default function Home() {
       }
 
       setPushReady(true);
-      alert('Đã bật chuông nhắc tự động thành công!');
+      await reg.showNotification('Đã kết nối chuông!', {
+        body: 'Thông báo trên iPhone của bạn đã hoạt động.',
+      });
+      alert('Đã làm mới và bật chuông thành công! Bạn vừa thấy thông báo thử hiện lên chứ?');
     } catch (err) {
       alert('Lỗi bật thông báo: ' + err.message);
+    }
+  };
+
+  const testLocalNotification = async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification('Kiểm tra chuông iPhone!', {
+        body: 'Nếu thấy dòng này là iPhone đã cho phép hiện thông báo.',
+      });
+    } catch (err) {
+      alert('Lỗi bắn thử thông báo: ' + err.message);
     }
   };
 
@@ -260,18 +283,29 @@ export default function Home() {
           <p className="text-xs font-semibold text-slate-500">Hôm nay {todayStr ? `• ${todayStr}` : ''}</p>
           <h1 className="text-2xl font-extrabold text-slate-900">Lịch Uống Thuốc</h1>
         </div>
-        <button
-          type="button"
-          onClick={enablePushNotifications}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold border transition ${
-            pushReady
-              ? 'bg-teal-50 text-teal-700 border-teal-200'
-              : 'bg-amber-50 text-amber-700 border-amber-300 animate-pulse'
-          }`}
-        >
-          <Bell className="w-4 h-4" />
-          {pushReady ? 'Chuông: BẬT' : 'Bật chuông'}
-        </button>
+        <div className="flex items-center gap-1.5">
+          {pushReady && (
+            <button
+              type="button"
+              onClick={testLocalNotification}
+              className="px-2.5 py-2 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300"
+            >
+              Thử chuông
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={enablePushNotifications}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold border transition ${
+              pushReady
+                ? 'bg-teal-50 text-teal-700 border-teal-200'
+                : 'bg-amber-50 text-amber-700 border-amber-300 animate-pulse'
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            {pushReady ? 'Làm mới chuông' : 'Bật chuông'}
+          </button>
+        </div>
       </div>
 
       {/* Thẻ tiến độ */}
@@ -553,7 +587,7 @@ export default function Home() {
 
               <div className="bg-teal-50 border border-teal-200 p-3 rounded-xl">
                 <p className="text-xs font-bold text-teal-800 mb-1.5">
-                  Đã chọn ({selectedTimes.length} cữ):
+                  Đã chọn ({selectedTimes.length} cử):
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedTimes.map((t) => (
