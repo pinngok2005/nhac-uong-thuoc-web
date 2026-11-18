@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import webpush from 'web-push';
-
-export const dynamic = 'force-dynamic';
+import { setVapidDetails, sendNotification } from 'web-push';
 
 export async function GET(request) {
   try {
@@ -18,7 +16,7 @@ export async function GET(request) {
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    webpush.setVapidDetails(
+    setVapidDetails(
       'mailto:admin@nhacuongthuoc.app',
       process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY.trim(),
       process.env.VAPID_PRIVATE_KEY.trim()
@@ -80,7 +78,7 @@ export async function GET(request) {
       const pushConfig = { endpoint: sub.endpoint, keys: sub.keys };
       for (const msg of messages) {
         try {
-          await webpush.sendNotification(pushConfig, JSON.stringify(msg));
+          await sendNotification(pushConfig, JSON.stringify(msg));
           sentCount++;
         } catch (err) {
           pushErrors.push(err.message);
