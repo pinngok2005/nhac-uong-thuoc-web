@@ -56,6 +56,7 @@ export default function Home() {
   const [tab, setTab] = useState('today');
   const [modalOpen, setModalOpen] = useState(false);
   const [pushReady, setPushReady] = useState(false);
+  const [todayStr, setTodayStr] = useState('');
 
   const [name, setName] = useState('');
   const [dosage, setDosage] = useState('1 viên');
@@ -65,6 +66,7 @@ export default function Home() {
   const [customTime, setCustomTime] = useState('07:30');
 
   useEffect(() => {
+    setTodayStr(getTodayVN());
     fetchMeds();
     checkPushStatus();
   }, []);
@@ -213,7 +215,7 @@ export default function Home() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-xs font-semibold text-slate-500">Hôm nay • {getTodayVN()}</p>
+          <p className="text-xs font-semibold text-slate-500">Hôm nay {todayStr ? `• ${todayStr}` : ''}</p>
           <h1 className="text-2xl font-extrabold text-slate-900">Lịch Uống Thuốc</h1>
         </div>
         <button
